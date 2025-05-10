@@ -1,72 +1,124 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to JellyJoy Games</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            line-height: 1.6;
-            margin: 20px;
-            color: #333;
-        }
-
-        h1 {
-            color: #ff6f61;
-        }
-
-        p {
-            margin-bottom: 15px;
-        }
-
-        img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .cta-button {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #ff6f61;
-            color: #fff;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-        }
-
-        .cta-button:hover {
-            background-color: #e0574f;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>Mind Elixir – Combined CSV</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mind-elixir/dist/index.css" />
+  <style>
+    #map { width:100%; height: 95vh; border:1px solid #ccc; }
+    #controls { margin:8px; }
+  </style>
 </head>
-
 <body>
-    <div class="container">
-        <h1>Welcome to JellyJoy Games</h1>
-        <p>Discover a world of fun and excitement with JellyJoy Games. We bring you engaging and entertaining mobile games that will keep you entertained for hours.</p>
+  <div id="controls">
+    <label for="sel">Chọn map:</label>
+    <select id="sel"><option>-- Đang tải --</option></select>
+  </div>
+  <div id="map"></div>
 
-        <img src="jellyjoy_logo.png" alt="JellyJoy Games Logo">
+  <!-- PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 
-        <p>Explore our latest games and embark on thrilling adventures. Whether you're a casual gamer or a hardcore enthusiast, we have something for everyone.</p>
+  <!-- Mind Elixir & khởi tạo -->
+  <script type="module">
+    import MindElixir from 'https://cdn.jsdelivr.net/npm/mind-elixir/dist/MindElixir.js';
 
-        <p>Why choose JellyJoy Games?</p>
-        <ul>
-            <li>Exciting and innovative game concepts</li>
-            <li>High-quality graphics and immersive gameplay</li>
-            <li>Frequent updates and new releases</li>
-            <li>Join our vibrant gaming community</li>
-        </ul>
+    // 1. Tạo instance Mind Elixir (chưa data)
+    const mind = new MindElixir({
+      el: '#map',
+      direction: MindElixir.SIDE,
+      draggable: true,
+      toolBar: true,
+      nodeMenu: true,
+      keypress: true,
+      locale: 'en'
+    });
 
-        <p>Ready to dive into the world of JellyJoy Games?</p>
-        <a href="#download" class="cta-button">Download Now</a>
-    </div>
+    // 2. Load CSV chứa cả tên + JSON map
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRYFRz28O9Hdxi1HirU59aL4Zh5XqBWTAty5fSVTEnGnzH5AaZUN3xTMr2wTAQrwD5NUhAQpvbD6KhO/pub?gid=2072119731&single=true&output=csv'; // hoặc URL Google Sheets xuất CSV
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: results => {
+        const select = document.getElementById('sel');
+        select.innerHTML = '<option value="">-- Chọn map --</option>';
+        console.log(results.data);
+        // populate dropdown
+        console.log("populate dropdown");
+        results.data.forEach(row => {
+          const opt = new Option(row.name, row.json);
+          console.log("add opt: " + row.name);
+          select.append(opt);
+        });
+
+        // khi đổi lựa chọn
+        select.addEventListener('change', e => {
+          const selName = e.target.value;
+          console.log("on select: " + selName);
+          if (!selName) return;
+
+          // tìm object JSON tương ứng
+          console.log("tìm object JSON tương ứng")
+
+          // const row = results.data.find(r => r.name === selName);
+          // if (!row) return;
+
+          // parse JSON string
+          console.log("parse JSON string")
+
+          let mapData;
+          try {
+            var data = JSON.parse(selName);
+            console.log(data);
+            mapData = data
+            const data2 = {
+  nodeData: {
+    id: '0',
+    topic: 'new topic',
+    root: false,
+    children: [
+      {
+        topic: 'new node',
+        id: '1',
+        children: [
+          {
+            topic: 'new node',
+            id: '2',
+          },
+          {
+            topic: 'new node',
+            id: '2',
+          },
+          {
+            topic: 'new node',
+            id: '2',
+          },
+        ],
+      },
+    ],
+  }
+}
+console.log(data2);
+mapData = data;
+            
+
+
+
+          } catch (err) {
+            console.error('Lỗi parse JSON for map', selName, err);
+            return;
+          }
+
+          // khởi tạo Mind Elixir
+          console.log("khởi tạo Mind Elixir")
+          
+          mind.init(mapData);
+          console.log("finish init map");
+        });
+      },
+      error: err => console.error('PapaParse error:', err)
+    });
+  </script>
 </body>
-
 </html>
