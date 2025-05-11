@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV Translator (Client-side JS)</title>
+  <!-- dependencies from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #loading { display: none; font-weight: bold; margin: 10px 0; }
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; max-width: 80%; }
+    .tag { padding: 6px 12px; border: 1px solid #ccc; border-radius: 16px; cursor: pointer; user-select: none; }
+    .tag.active { background-color: #007bff; color: #fff; border-color: #007bff; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    label, select, input, textarea, button { font-family: Arial, sans-serif; }
+    textarea { width: 80%; height: 80px; padding: 6px; }
+  </style>
+</head>
+<body>
+  <h1>CSV Translator (Client-side JS)</h1>
+
+  <label>API Key (OpenAI):<br>
+    <input id="apiKey" type="password" style="width:80%" placeholder="sk-..." />
+  </label>
+  <br><br>
+
+  <label>Select OpenAI Model:<br>
+    <select id="modelSelect" style="width:80%; padding:6px;">
+      <option value="gpt-3.5-turbo" selected>gpt-3.5-turbo</option>
+      <option value="gpt-3.5-turbo-16k">gpt-3.5-turbo-16k</option>
+      <option value="gpt-4">gpt-4</option>
+      <option value="gpt-4-turbo">gpt-4-turbo</option>
+    </select>
+  </label>
+  <br><br>
+
+  <label>Custom Prompt (use {text} and {lang} placeholders):<br>
+    <textarea id="promptTemplate">You are a translator. Translate the following text to {lang}: "{text}"</textarea>
+  </label>
+  <br><br>
+
+  <label>Google Sheet CSV URL:<br>
+    <input id="sheetUrl" type="url" style="width:80%" placeholder="https://docs.google.com/.../export?format=csv" />
+  </label>
+  <br><br>
+
+  <label>Select target languages:</label>
+  <div class="tag-container" id="tagContainer"></div>
+  <br><br>
+
+  <button id="goBtn">Translate & Download ZIP</button>
+  <div id="loading">Translating, please wait...</div>
+
+  <script>
+    const languages = [
+      { code: 'en', name: 'English' },{ code: 'zh', name: 'Chinese' },{ code: 'es', name: 'Spanish' },
+      { code: 'hi', name: 'Hindi' },{ code: 'ar', name: 'Arabic' },{ code: 'bn', name: 'Bengali' },
+      { code: 'pt', name: 'Portuguese' },{ code: 'ru', name: 'Russian' },{ code: 'ja', name: 'Japanese' },
+      { code: 'pa', name: 'Punjabi' },{ code: 'mr', name: 'Marathi' },{ code: 'te', name: 'Telugu' },
+      { code: 'tr', name: 'Turkish' },{ code: 'ko', name: 'Korean' },{ code: 'ta', name: 'Tamil' },
+      { code: 'fr', name: 'French' },{ code: 'vi', name: 'Vietnamese' },{ code: 'de', name: 'German' },
+      { code: 'ur', name: 'Urdu' },{ code: 'jv', name: 'Javanese' }
+    ];
+    const container = document.getElementById('tagContainer');
+    languages.forEach(lang => {
+      const span = document.createElement('span');
+      span.className = 'tag' + (lang.code === 'en' ? ' active' : '');
+      span.textContent = `${lang.name} (${lang.code})`;
+      span.dataset.code = lang.code;
+      span.addEventListener('click', () => span.classList.toggle('active'));
+      container.appendChild(span);
+    });
+
+    async function translateText(text, lang, apiKey, model, promptTemplate) {
+      const prompt = promptTemplate.replace('{text}', text).replace('{lang}', lang);
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey },
+        body: JSON.stringify({ model, messages:[ {role:'system', content:prompt} ], temperature:0.3 })
+      });
+      const data = await res.json(); if(!res.ok) throw new Error(data.error?.message||'API error');
+      return data.choices[0].message?.content.trim() || data.choices[0].text.trim();
+    }
+
+    document.getElementById('goBtn').addEventListener('click', async () => {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const model = document.getElementById('modelSelect').value;
+      const promptTemplate = document.getElementById('promptTemplate').value;
+      const url = document.getElementById('sheetUrl').value.trim();
+      const langs = Array.from(document.querySelectorAll('.tag.active')).map(el=>el.dataset.code);
+      if(!apiKey||!model||!promptTemplate||!url||langs.length===0) return alert('Enter API key, model, prompt, sheet URL and select languages.');
+
+      const goBtn = document.getElementById('goBtn'), loading = document.getElementById('loading');
+      goBtn.disabled=true; loading.style.display='block';
+      try{
+        const csvText = await fetch(url).then(r=>r.text());
+        const parsed = Papa.parse(csvText,{header:true}).data;
+        const zip = new JSZip();
+        for(const lang of langs){
+          const rows=[];
+          for(const row of parsed){const newRow={};for(const k in row)newRow[k]=await translateText(row[k]||'',lang,apiKey,model,promptTemplate);rows.push(newRow);}  
+          zip.file(`${lang}.csv`,Papa.unparse(rows));
+        }
+        const blob=await zip.generateAsync({type:'blob'});
+        const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='translations.zip';a.click();
+      }catch(e){alert('Error: '+e.message);console.error(e);}finally{loading.style.display='none';goBtn.disabled=false;}
+    });
+  </script>
+</body>
+</html>
